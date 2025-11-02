@@ -1,0 +1,7 @@
+[docker-server]
+18.212.226.232
+
+[docker-server:vars]
+ansible_ssh_private_key_file=~/Downloads/cicd.pem
+ansible_user=ubuntu
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

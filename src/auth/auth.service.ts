@@ -7,82 +7,79 @@ import { User, UserRole } from 'src/users/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
-
-// import * as jwt from "jsonwebtoken"
-
 @Injectable()
 export class AuthService {
-    private readonly logger = new Logger(AuthService.name)
-    constructor(
-        @InjectRepository(User) private readonly useRepository:Repository<User>,
-        private config: ConfigService,
-        private jwtService:JwtService
-    ){}
+  private readonly logger = new Logger(AuthService.name);
 
-    async signUp(body:SignUpDto){
-        const {email, password, role} = body
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly config: ConfigService,
+    private readonly jwtService: JwtService,
+  ) {}
 
-        this.logger.log("attempting signup by user")
-        const existingUser = await this.useRepository.findOne({where:{email}})
-        if(existingUser){
-            throw new BadRequestException("User with this email already exists")
-        }
-        const user = this.useRepository.create({email, password, role: role as UserRole})
-        await this.useRepository.save(user)
-        const token = await this.generateToken(user)
-          const {password:_, ...userWithoutPassword}= user
-        return {
-            status: "Successful",
-            token,
-            data:{
-                user:userWithoutPassword
-            }
-        }
-        
-        
+  async signUp(body: SignUpDto) {
+    const { email, password, role } = body;
+
+    this.logger.log('Attempting signup by user');
+    const existingUser = await this.userRepository.findOne({ where: { email } });
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
     }
 
-    //Sign In Service
-  async signIn(body:SignInDto){
+    const user = this.userRepository.create({ email, password, role: role as UserRole });
+    await this.userRepository.save(user);
 
-        const {email, password}= body
+    const token = await this.generateToken(user);
+    const { password: _, ...userWithoutPassword } = user;
 
-        this.logger.log(`Attempting login ${email}`)
-        if (!email || !password){
-            throw new UnauthorizedException("email and password are required!")
-        }
-        const user = await this.useRepository.findOne({where:{email}})
-        const isMatched = await user?.comparePassword(password)
-        if (!user || !isMatched){
-            throw new UnauthorizedException("Invalid email or pasword!")
-        }
+    return {
+      status: 'Successful',
+      token,
+      data: {
+        user: userWithoutPassword,
+      },
+    };
+  }
 
-        const token = await this.generateToken(user);
-        const {password:_, ...userWithoutPassword}= user
-         return {
-            status: "Successful",
-            token,
-            data:{
-                user:userWithoutPassword
-            }
-        }
+  async signIn(body: SignInDto) {
+    const { email, password } = body;
 
+    this.logger.log(`Attempting login: ${email}`);
+    if (!email || !password) {
+      throw new UnauthorizedException('Email and password are required!');
     }
 
-    async generateToken(user:User){
-    //     const payload={id}
-    //     const secret = this.config.get<string>('JWT_SECRET');
-    //   if (!secret) throw new Error('JWT_SECRET is not defined');
+    const user = await this.userRepository.findOne({ where: { email } });
+    const isMatched = await user?.comparePassword(password);
 
-    //     const expiresIn = this.config.get<string>("JWT_EXPIRES_IN") || "90d";
-
-        // return (payload, secret, {expiresIn})
-        return await this.jwtService.signAsync({id:user.id, role:user.role,},
-            {
-            secret:this.config.get<string>("JWT_SECRET"),
-            expiresIn:this.config.get<string>("JWT_EXOIRES_IN") || "90d"
-        }
-    )
+    if (!user || !isMatched) {
+      throw new UnauthorizedException('Invalid email or password!');
     }
+
+    const token = await this.generateToken(user);
+    const { password: _, ...userWithoutPassword } = user;
+
+    return {
+      status: 'Successful',
+      token,
+      data: {
+        user: userWithoutPassword,
+      },
+    };
+  }
+
+  async generateToken(user: User) {
+    const secret = this.config.get<string>('JWT_SECRET');
+    const expiresIn = this.config.get<string>('JWT_EXPIRES_IN') || '90d';
+
+    // ✅ Fixed TS typing issue by explicitly casting `expiresIn` to any
+    return await this.jwtService.signAsync(
+      { id: user.id, role: user.role },
+      {
+        secret,
+        expiresIn: expiresIn as any,
+      },
+    );
+  }
 }
- 

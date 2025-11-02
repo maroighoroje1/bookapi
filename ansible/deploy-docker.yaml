@@ -1,0 +1,96 @@
+---
+- name: Install Python3, Docker, and Docker Compose on Ubuntu EC2
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Install Docker engine and CLI
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Install Docker Compose v2
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+
+- name: Deploy BookAPI containers using Docker Compose and ECR image
+  hosts: all
+  become: yes
+  vars_files:
+    - group_vars/all/vault.yml  # AWS credentials encrypted with Ansible Vault
+
+  vars:
+    ecr_repo_url: 020147456763.dkr.ecr.us-east-1.amazonaws.com/bookapi
+    aws_region: us-east-1
+
+  tasks:
+    - name: Copy docker-compose.yaml
+      copy:
+        src: ../docker-compose.yaml
+        dest: /home/ubuntu/docker-compose.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copy .env file
+      copy:
+        src: ../.env
+        dest: /home/ubuntu/.env
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Log in to Amazon ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ ecr_repo_url }}
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ aws_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ aws_secret_access_key }}"
+      args:
+        executable: /bin/bash
+
+    - name: Pull the latest image from ECR
+      shell: docker-compose pull
+      args:
+        chdir: /home/ubuntu/
+
+    - name: Deploy containers with Docker Compose
+      shell: docker-compose up -d
+      args:
+        chdir: /home/ubuntu/
