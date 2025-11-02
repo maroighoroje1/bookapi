@@ -7,7 +7,7 @@ on:
       - main           # Auto-deploy when main updates
 
 env:
-  APP_SERVER: 157.230.120.252
+  APP_SERVER: 18.212.226.232
 
 jobs:
   deploy:
